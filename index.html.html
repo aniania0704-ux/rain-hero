@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>暴雨小英雄：超級任務</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+    
+    <style>
+        /* 全域字體大一統，強化極致童趣感 */
+        body, button, div, h1, h2, h3, span {
+            font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body { 
+            background: #5c94fc; 
+            margin: 0; 
+            padding: 0;
+            overflow: hidden; 
+            user-select: none;
+        }
+        /* 卡通像素風大地圖 */
+        .world-map { 
+            background: #4ab44a; 
+            background-image: radial-gradient(#3d9e3d 25%, transparent 25%);
+            background-size: 20px 20px;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.25);
+        }
+        /* 彈跳動態效果 */
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .hero-bounce { animation: bounce-slow 1.5s infinite ease-in-out; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 核心降雨與安全科普知識庫 (12題) ---
+        const QUIZZES = [
+            { q: "氣象測站測得多少降雨量，才算正式「下雨」？", a: "0.1 毫米 (mm) 或以上", options: ["0.1 毫米 (mm) 或以上", "1.0 毫米 (mm)", "5.0 毫米 (mm)"], fact: "只要氣象局測站測到 0.1mm 以上，在統計上就視為有降雨喔！" },
+            { q: "預報寫降雨機率 100% 代表什麼？", a: "降雨機率大於 95%", options: ["代表雨會下得超級大", "整個地區每一秒都在下雨", "降雨機率大於 95%"], fact: "降雨機率是指「下雨的可能性」，100% 是四捨五入的結果，代表機率大於 95%。" },
+            { q: "如果降雨機率是 0%，當天還會下雨嗎？", a: "仍有 1% - 4% 的小機會下雨", options: ["絕對百分之百不會下雨", "仍有 1% - 4% 的小機會下雨", "天空一定會大太陽"], fact: "0% 也是四捨五入的結果，代表機率小於 5%，所以還是有極低機會飄雨喔！" },
+            { q: "降雨機率 70% 的真正含意是？", a: "該地區有 70% 的機率會下雨", options: ["有 70% 的地方在下雨", "雨量會比平常多 70%", "該地區有 70% 的機率會下雨"], fact: "機率不代表雨量大小，也不代表下雨的面積，單純是降雨的「機會」！" },
+            { q: "24小時累積雨量達 80 毫米 (mm) 以上稱為什麼？", a: "大雨", options: ["大雨", "豪雨", "大豪雨"], fact: "24小時累積雨量達 80mm 以上，或時雨量達 40mm 以上，氣象局就會發布大雨特報。" },
+            { q: "24小時累積雨量達多少毫米 (mm) 以上才會稱為「豪雨」？", a: "200 毫米 (mm)", options: ["100 毫米 (mm)", "200 毫米 (mm)", "500 毫米 (mm)"], fact: "達 200mm 以上稱為豪雨；若達 350mm 稱為大豪雨，500mm 以上則是超大豪雨！" },
+            { q: "雷雨天走在路上，應特別避開哪裡防止導電危險？", a: "金屬變電箱與鐵製水溝蓋", options: ["一般水泥馬路", "金屬變電箱與鐵製水溝蓋", "木製公車候車亭"], fact: "積水容易導電，而且雨天的鐵蓋、斜坡非常濕滑，是常見的路上陷阱！" },
+            { q: "雨天過馬路時，積水的水坑為什麼會讓人踩空？", a: "光線折射讓人誤判深度", options: ["水坑裡有磁鐵吸引力", "光線折射讓人誤判深度", "雨水會把鞋底融化"], fact: "積水表面會產生光線折射，形成視線死角與盲區，讓人無法看清真實水深。" },
+            { q: "若要開車強行通過積水，水深超過哪裡就不應通過？", a: "輪胎的一半高度", options: ["淹到車頂", "淹到門把", "輪胎的一半高度"], fact: "水深如果超過輪胎一半，水容易灌進排氣管導致熄火，讓人受困車內。" },
+            { q: "看到溪水突然變得「非常混濁」代表什麼？", a: "溪水上游可能爆發山洪", options: ["有大群魚兒游過去", "天氣準備要變晴朗了", "溪水上游可能爆發山洪"], fact: "這是山洪與土石流爆發前最危險的警訊，必須立刻往垂直流向的高處逃生！" },
+            { q: "打雷暴雨時，在室內做什麼事情比較安全？", a: "玩免插電的掌上遊戲機", options: ["講接線的有線市話", "在洗澡水槽洗手洗澡", "玩免插電的掌上遊戲機"], fact: "閃電突波可能會透過實體有線迴路（如市話線、水管）傳導，室內也要防雷喔！" },
+            { q: "如果明天發布「豪雨特報」，出門裝備該怎麼選擇？", a: "亮亮雨衣與高筒防護雨鞋", options: ["亮亮雨衣與高筒防護雨鞋", "一把普通的抗UV遮陽傘", "不穿雨衣直接衝過去"], fact: "大豪雨視線極差、斜坡濕滑，穿亮色雨衣能提高能見度，防護雨鞋則可防止涉水滑倒。" }
+        ];
+
+        const CHARS = [
+            { id: 1, icon: '👦', name: '小健' }, { id: 2, icon: '👧', name: '小晴' },
+            { id: 3, icon: '🐱', name: '波波' }, { id: 4, icon: '🤖', name: '雷達兵' }
+        ];
+
+        const GEARS = [
+            { id: 1, icon: '👢', name: '防護雨鞋' }, { id: 2, icon: '🦺', name: '亮亮雨衣' },
+            { id: 3, icon: '☂️', name: '神奇雨傘' }
+        ];
+
+        // 棋盤大富翁地圖格點，12個關卡在手機和網頁都能精準排列
+        const MAP_CELLS = [
+            { id: 0, name: "起點" }, { id: 1, name: "下雨定義" }, { id: 2, name: "100%機率" },
+            { id: 3, name: "0%秘密" }, { id: 4, name: "70%含意" }, { id: 5, name: "大雨特報" },
+            { id: 6, name: "豪雨定義" }, { id: 7, name: "路上防電" }, { id: 8, name: "水坑折射" },
+            { id: 9, name: "涉水極限" }, { id: 10, name: "山洪警訊" }, { id: 11, name: "終點任務" }
+        ];
+
+        function App() {
+            const [view, setView] = useState('START');
+            const [player, setPlayer] = useState({ char: null, gear: null, level: 0, score: 0 });
+            const [diceValue, setDiceValue] = useState(null);
+            const [isRolling, setIsRolling] = useState(false);
+            const [showQuiz, setShowQuiz] = useState(false);
+            const [feedback, setFeedback] = useState(null);
+            const [correctCount, setCorrectCount] = useState(0); // 記錄累計答對題數
+
+            // 小遊戲共同核心狀態
+            const [gameScore, setGameScore] = useState(0);
+            const [gameTimer, setGameTimer] = useState(0);
+            const [nextGameType, setNextGameType] = useState('PIANO'); // 輪流觸發
+
+            // 小遊戲專用資料狀態
+            const [pianoRows, setPianoRows] = useState([]);
+            const [moles, setMoles] = useState(Array(6).fill(false));
+            const [mineGrid, setMineGrid] = useState([]);
+
+            // 擲骰子前進機制
+            const rollDice = () => {
+                if (isRolling || showQuiz) return;
+                setIsRolling(true);
+                setDiceValue(null);
+                
+                let runTimes = 0;
+                const interval = setInterval(() => {
+                    setDiceValue(Math.floor(Math.random() * 2) + 1); // 隨機步數 1 ~ 2 步，適合手機精緻地圖
+                    runTimes++;
+                    if (runTimes > 6) {
+                        clearInterval(interval);
+                        setIsRolling(false);
+                        setShowQuiz(true); // 進入答題
+                    }
+                }, 100);
+            };
+
+            // 檢查答案
+            const handleAnswer = (selected) => {
+                const currentQuiz = QUIZZES[player.level % QUIZZES.length];
+                if (selected === currentQuiz.a) {
+                    setFeedback({ ok: true, fact: currentQuiz.fact });
+                    setPlayer(p => ({ ...p, score: p.score + 100 }));
+                    setCorrectCount(c => c + 1);
+                } else {
+                    setFeedback({ ok: false, fact: currentQuiz.fact });
+                }
+            };
+
+            // 關閉答題視窗並結算位置
+            const confirmFeedback = () => {
+                const wasCorrect = feedback.ok;
+                setFeedback(null);
+                setShowQuiz(false);
+
+                if (wasCorrect) {
+                    const steps = diceValue || 1;
+                    let nextLvl = player.level + steps;
+                    
+                    if (nextLvl >= MAP_CELLS.length - 1) {
+                        nextLvl = MAP_CELLS.length - 1;
+                        setPlayer(p => ({ ...p, level: nextLvl }));
+                        setTimeout(() => setView('END'), 800);
+                    } else {
+                        setPlayer(p => ({ ...p, level: nextLvl }));
+                        // 【關鍵機制】每答對 2 題，必定觸發一次小遊戲關卡
+                        if ((correctCount + 1) % 2 === 0) {
+                            setTimeout(() => triggerMiniGame(), 600);
+                        }
+                    }
+                }
+            };
+
+            // 初始化並抽選啟動小遊戲
+            const triggerMiniGame = () => {
+                setGameScore(0);
+                setGameTimer(12); // 快節奏 12 秒
+
+                if (nextGameType === 'PIANO') {
+                    const rows = Array.from({length: 4}, () => {
+                        const r = [0, 0, 0, 0];
+                        r[Math.floor(Math.random() * 4)] = 2; // 2 為藍色大水滴
+                        return r;
+                    });
+                    setPianoRows(rows);
+                    setView('GAME_PIANO');
+                    setNextGameType('MOLE');
+                } else if (nextGameType === 'MOLE') {
+                    setView('GAME_MOLE');
+                    setNextGameType('MINE');
+                } else {
+                    // 踩地雷：4x4 網格中包含 3 個雷
+                    let grid = Array(16).fill(1);
+                    let bombCount = 0;
+                    while (bombCount < 3) {
+                        let rand = Math.floor(Math.random() * 16);
+                        if (grid[rand] !== 9) { grid[rand] = 9; bombCount++; }
+                    }
+                    setMineGrid(grid);
+                    setView('GAME_MINE');
+                    setNextGameType('PIANO');
+                }
+            };
+
+            // 小遊戲通用倒數計時計時器
+            useEffect(() => {
+                if (view.startsWith('GAME_')) {
+                    const cd = setInterval(() => {
+                        setGameTimer(t => {
+                            if (t <= 1) {
+                                clearInterval(cd);
+                                setPlayer(p => ({ ...p, score: p.score + gameScore * 20 }));
+                                alert(`🎮 遊戲時間到！你額外賺到了 ${gameScore * 20} 冒險積分！`);
+                                setView('MAP');
+                                return 0;
+                            }
+                            return t - 1;
+                        });
+                    }, 1000);
+                    return () => clearInterval(cd);
+                }
+            }, [view, gameScore]);
+
+            // 別踩白塊點擊處理
+            const handlePianoTap = (rIdx, cIdx, val) => {
+                if (rIdx === 3 && val === 2) { // 只有最底下一行的藍水滴可以踩
+                    setGameScore(s => s + 1);
+                    setPianoRows(prev => {
+                        const next = [...prev];
+                        next.pop();
+                        const newRow = [0,0,0,0];
+                        newRow[Math.floor(Math.random() * 4)] = 2;
+                        next.unshift(newRow);
+                        return next;
+                    });
+                }
+            };
+
+            // 敲地鼠點擊
+            const handleMoleTap = (idx) => {
+                if (moles[idx]) {
+                    setGameScore(s => s + 1);
+                    setMoles(prev => { const n = [...prev]; n[idx] = false; return n; });
+                }
+            };
+
+            // 地鼠隨機冒出迴圈
+            useEffect(() => {
+                if (view === 'GAME_MOLE') {
+                    const timer = setInterval(() => {
+                        setMoles(prev => {
+                            const n = [...prev];
+                            const r = Math.floor(Math.random() * 6);
+                            n[r] = Math.random() > 0.4;
+                            return n;
+                        });
+                    }, 500);
+                    return () => clearInterval(timer);
+                }
+            }, [view]);
+
+            // 踩地雷格子翻開
+            const handleMineTap = (idx) => {
+                if (mineGrid[idx] === 9) {
+                    alert("💥 哎呀！踩到暴風雨閃電雷擊區！扣除 50 分，保護安全退回安全區！");
+                    setPlayer(p => ({ ...p, score: Math.max(0, p.score - 50) }));
+                    setView('MAP');
+                } else if (mineGrid[idx] === 1) {
+                    setGameScore(s => s + 1);
+                    setMineGrid(prev => { const n = [...prev]; n[idx] = 0; return n; }); // 0代表翻開安全
+                    if (gameScore + 1 === 13) {
+                        alert("🎉 太厲害了！你避開了所有雷擊區，獲得全額 300 分獎勵！");
+                        setPlayer(p => ({ ...p, score: p.score + 300 }));
+                        setView('MAP');
+                    }
+                }
+            };
+
+            // --- 視圖劃分與渲染 ---
+            if (view === 'START') return (
+                <div className="h-screen w-full flex flex-col items-center justify-center text-white px-4 text-center select-none" style={{ background: 'linear-gradient(to bottom, #3b82f6, #06b6d4)' }}>
+                    <div className="hero-bounce text-8xl mb-2">⛈️🏃‍♂️🎒</div>
+                    <h1 className="text-5xl md:text-7xl font-black text-yellow-300 drop-shadow-[0_4px_0_rgba(0,0,0,0.3)] leading-tight mb-8">
+                        暴雨小英雄<br/><span className="text-2xl md:text-3xl text-white block mt-2">氣象特訓大富翁</span>
+                    </h1>
+                    <button onClick={() => setView('CHAR')} className="px-10 py-5 bg-amber-400 text-rose-700 rounded-full text-3xl font-black border-b-[8px] border-amber-700 active:border-b-0 active:translate-y-2 transition-all shadow-xl">
+                        開 始 冒 險 !
+                    </button>
+                </div>
+            );
+
+            if (view === 'CHAR' || view === 'GEAR') return (
+                <div className="p-6 max-w-xl mx-auto h-screen flex flex-col justify-center items-center">
+                    <h2 className="text-3xl font-black text-white text-center mb-8 drop-shadow-md">
+                        {view === 'CHAR' ? '🌟 選擇你的Q萌英雄' : '🎒 挑選防爆雨法寶'}
+                    </h2>
+                    <div className="grid grid-cols-2 gap-4 w-full">
+                        {(view === 'CHAR' ? CHARS : GEARS).map(item => (
+                            <button key={item.id} onClick={() => {
+                                if(view === 'CHAR') { setPlayer({...player, char: item}); setView('GEAR'); }
+                                else { setPlayer({...player, gear: item}); setView('MAP'); }
+                            }} className="bg-amber-50 p-5 rounded-3xl border-b-8 border-amber-200 active:scale-95 active:border-b-2 transition-all shadow-md text-center">
+                                <div className="text-6xl mb-2">{item.icon}</div>
+                                <div className="text-2xl font-black text-slate-800">{item.name}</div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            );
+
+            if (view === 'MAP') return (
+                <div className="p-3 max-w-md mx-auto h-screen flex flex-col justify-between">
+                    {/* 頂部資訊看板 */}
+                    <div className="bg-sky-900/60 backdrop-blur-md rounded-2xl p-3 flex justify-between items-center text-white border-2 border-white/30 shadow">
+                        <div className="flex items-center gap-2">
+                            <span className="text-3xl hero-bounce">{player.char?.icon}</span>
+                            <div>
+                                <div className="text-md font-bold leading-tight">{player.char?.name}</div>
+                                <div className="text-xs text-yellow-300 font-sans">裝備:{player.gear?.icon}</div>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-xs text-sky-200 block">SCORE</span>
+                            <span className="text-2xl font-black text-yellow-400">{player.score} <span className="text-xs text-white">分</span></span>
+                        </div>
+                    </div>
+
+                    {/* 響應式棋盤地圖格（3x4排列，完美適配手機與網頁，絕不位移漂浮） */}
+                    <div className="world-map flex-1 my-3 rounded-3xl border-8 border-emerald-700 p-3 grid grid-cols-3 grid-rows-4 gap-2 relative">
+                        {MAP_CELLS.map((cell, idx) => {
+                            const isCurrent = player.level === idx;
+                            const isPassed = idx < player.level;
+                            
+                            return (
+                                <div 
+                                    key={idx}
+                                    className={`rounded-2xl border-4 relative flex flex-col items-center justify-center p-1 text-center transition-all duration-300 shadow-sm
+                                        ${isCurrent ? 'bg-yellow-400 border-white scale-105 z-10 shadow-lg' : 
+                                          isPassed ? 'bg-emerald-500 border-emerald-600 opacity-80' : 'bg-slate-400/80 border-slate-500'}`}
+                                >
+                                    {/* 當前格子有角色時精準置中重疊顯示 */}
+                                    {isCurrent ? (
+                                        <div className="text-3xl hero-bounce absolute -top-4 z-20 drop-shadow-md">
+                                            {player.char?.icon}
+                                        </div>
+                                    ) : null}
+
+                                    <span className="text-xs font-black text-slate-900 bg-white/90 px-1 rounded-md scale-90 md:scale-100">
+                                        {cell.name}
+                                    </span>
+                                    <span className="text-[10px] text-white/90 font-sans mt-0.5 block">
+                                        {idx === 0 ? 'START' : idx === 11 ? 'GOAL' : `LV.${idx}`}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* 底部骰子控制盤 */}
+                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl flex items-center justify-between border border-white/20 mb-2">
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl font-black text-slate-800 shadow border-b-4 border-gray-300">
+                                {isRolling ? '🌀' : (diceValue || '?')}
+                            </div>
+                            <div className="text-xs text-white leading-tight font-medium">答對題後<br/>會根據點數前進</div>
+                        </div>
+                        <button 
+                            onClick={rollDice}
+                            disabled={isRolling || showQuiz}
+                            className="px-6 py-3.5 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-xl text-xl font-black shadow-md hover:brightness-105 active:scale-95 disabled:opacity-50"
+                        >
+                            🎲 丟骰子挑戰
+                        </button>
+                    </div>
+
+                    {/* 答題科普彈窗系統 */}
+                    {showQuiz && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-3xl p-5 max-w-xs w-full border-t-8 border-sky-500 shadow-2xl text-slate-800">
+                                {!feedback ? (
+                                    <>
+                                        <div className="text-[11px] bg-sky-100 text-sky-700 font-bold px-2.5 py-0.5 rounded-full w-max mb-2">
+                                            🎯 挑戰主題: {MAP_CELLS[player.level]?.name}
+                                        </div>
+                                        <h3 className="text-lg font-black mb-4 leading-snug">
+                                            {QUIZZES[player.level % QUIZZES.length].q}
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {QUIZZES[player.level % QUIZZES.length].options.map((opt, idx) => (
+                                                <button 
+                                                    key={idx}
+                                                    onClick={() => handleAnswer(opt)}
+                                                    className="w-full text-left p-3 rounded-xl border-2 border-slate-100 hover:border-sky-400 hover:bg-sky-50 text-sm font-bold transition-all active:bg-sky-100"
+                                                >
+                                                    {idx + 1}. {opt}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-center">
+                                        <div className="text-4xl mb-2">{feedback.ok ? '🎉 太棒了！' : '❌ 答錯囉'}</div>
+                                        <div className="bg-amber-50 p-3 rounded-xl text-left border-l-4 border-amber-400 mb-4 text-xs font-medium text-slate-700 leading-relaxed">
+                                            <strong className="text-amber-800 block mb-0.5">💡 科普小祕笈:</strong>
+                                            {feedback.fact}
+                                        </div>
+                                        <button 
+                                            onClick={confirmFeedback}
+                                            className="w-full py-2.5 bg-sky-500 text-white font-bold rounded-xl shadow text-sm hover:bg-sky-600"
+                                        >
+                                            {feedback.ok ? `出發！向前移動 ${diceValue} 格` : '留在原格繼續加油'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            // 小遊戲 1: 大水滴落下記樂 (別採白塊)
+            if (view === 'GAME_PIANO') return (
+                <div className="h-screen w-full bg-slate-900 flex flex-col items-center justify-between p-4 text-white">
+                    <div className="text-center pt-2">
+                        <h2 className="text-2xl font-black text-cyan-400">💧 搶救墜落大水滴</h2>
+                        <p className="text-xs text-slate-400 mt-0.5">點擊最底下一行的「🔵 藍色水滴格」！</p>
+                        <div className="flex justify-center gap-6 text-sm font-bold mt-2 bg-slate-800 px-4 py-1 rounded-full">
+                            <div>倒數: <span className="text-rose-400 font-sans text-lg">{gameTimer}</span> 秒</div>
+                            <div>得分: <span className="text-yellow-400 font-sans text-lg">{gameScore}</span></div>
+                        </div>
+                    </div>
+                    <div className="w-64 max-w-xs aspect-[3/4] bg-slate-800 border-4 border-slate-600 rounded-2xl overflow-hidden flex flex-col my-auto shadow-2xl">
+                        {pianoRows.map((row, rIdx) => (
+                            <div key={rIdx} className="flex flex-1 border-b border-slate-700/60 last:border-b-0">
+                                {row.map((val, cIdx) => (
+                                    <div 
+                                        key={cIdx}
+                                        onClick={() => handlePianoTap(rIdx, cIdx, val)}
+                                        className={`flex-1 border-r border-slate-700/60 last:border-r-0 transition-all flex items-center justify-center text-2xl
+                                            ${val === 2 ? 'bg-sky-500 active:bg-sky-400' : 'bg-white hover:bg-slate-100'}`}
+                                    >
+                                        {val === 2 && (rIdx === 3 ? '🔵' : '☁️')}
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="h-6"></div>
+                </div>
+            );
+
+            // 小遊戲 2: 敲地鼠 (淤泥怪大作戰)
+            if (view === 'GAME_MOLE') return (
+                <div className="h-screen w-full bg-emerald-950 flex flex-col items-center justify-between p-4 text-white">
+                    <div className="text-center pt-2">
+                        <h2 className="text-2xl font-black text-yellow-300">🔨 清除積水淤泥怪</h2>
+                        <p className="text-xs text-emerald-400 mt-0.5">水怪冒出時快速點擊消滅牠！</p>
+                        <div className="flex justify-center gap-6 text-sm font-bold mt-2 bg-emerald-900 px-4 py-1 rounded-full">
+                            <div>倒數: <span className="text-rose-400 font-sans text-lg">{gameTimer}</span> 秒</div>
+                            <div>消滅: <span className="text-yellow-400 font-sans text-lg">{gameScore}</span></div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 w-64 my-auto">
+                        {moles.map((isOut, idx) => (
+                            <div 
+                                key={idx}
+                                onClick={() => handleMoleTap(idx)}
+                                className="aspect-square bg-emerald-900 rounded-full border-4 border-emerald-700 shadow-inner relative overflow-hidden flex items-center justify-center"
+                            >
+                                <div className={`text-4xl transition-all duration-100 transform ${isOut ? 'scale-100 translate-y-0' : 'scale-0 translate-y-6'}`}>
+                                    👾
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="h-6"></div>
+                </div>
+            );
+
+            // 小遊戲 3: 踩地雷 (閃電雷擊區避難)
+            if (view === 'GAME_MINE') return (
+                <div className="h-screen w-full bg-violet-950 flex flex-col items-center justify-between p-4 text-white">
+                    <div className="text-center pt-2">
+                        <h2 className="text-2xl font-black text-violet-300">⚡ 避開暴風雨雷擊區</h2>
+                        <p className="text-xs text-violet-400 mt-0.5">找出13個安全☀️格子，點到⚡雷擊即結束！</p>
+                        <div className="mt-2 bg-violet-900 px-4 py-1 rounded-full text-sm font-bold">
+                            探索度: <span className="text-yellow-400 font-sans text-lg">{gameScore}</span> / 13
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 bg-violet-900/60 p-3 rounded-2xl border-2 border-violet-700 my-auto shadow-xl">
+                        {mineGrid.map((val, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => handleMineTap(idx)}
+                                disabled={val === 0}
+                                className={`w-14 h-14 rounded-xl font-black text-xl flex items-center justify-center transition-all active:scale-95
+                                    ${val === 0 ? 'bg-sky-400 text-white' : 'bg-violet-200 text-transparent'}`}
+                            >
+                                {val === 0 ? '☀️' : '❓'}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="h-6"></div>
+                </div>
+            );
+
+            if (view === 'END') return (
+                <div className="h-screen w-full flex flex-col items-center justify-center text-white px-6 text-center" style={{ background: 'linear-gradient(to top, #0f172a, #1e1b4b)' }}>
+                    <div className="text-7xl mb-4 hero-bounce">👑🏆🎖️</div>
+                    <h2 className="text-4xl font-black text-yellow-300 mb-2">特訓任務完美成功！</h2>
+                    <p className="text-sm text-slate-300 max-w-xs mb-6 leading-relaxed">
+                        恭喜你！你已經完全掌握了大雨、豪雨的定義與雨天必備的安全防禦知識，成為真正的氣象小英雄！
+                    </p>
+                    <div className="bg-white/10 px-6 py-3 rounded-2xl mb-8 border border-white/20">
+                        <span className="text-xs text-slate-400 block uppercase tracking-wider">最後英雄總積分</span>
+                        <span className="text-4xl font-black text-emerald-400 font-sans">{player.score} <span className="text-sm text-white">pts</span></span>
+                    </div>
+                    <button 
+                        onClick={() => { setPlayer({ char: null, gear: null, level: 0, score: 0 }); setCorrectCount(0); setView('START'); }}
+                        className="px-8 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xl rounded-xl shadow-md transition-colors"
+                    >
+                        🔄 重新特訓
+                    </button>
+                </div>
+            );
+
+            return null;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
